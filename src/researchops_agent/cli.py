@@ -17,9 +17,13 @@ from researchops_agent.ingestion.chunking import chunk_pages
 from researchops_agent.ingestion.loaders import load_document
 from researchops_agent.retrieval.evidence import build_evidence_pack
 from researchops_agent.retrieval.factory import build_retriever
+from researchops_agent.runner.config_builder import suggest_experiment_config
+from researchops_agent.runner.experiment_runner import run_experiment_config
 from researchops_agent.schemas.answer import EvidencePack
+from researchops_agent.schemas.experiment import ExperimentConfig
 from researchops_agent.utils.json_io import write_json
 from researchops_agent.utils.text_io import write_text
+from researchops_agent.utils.yaml_io import read_yaml, write_yaml
 
 app = typer.Typer(help="ResearchOps Agent CLI")
 
@@ -358,6 +362,72 @@ def compare_retrievers_command(
             f"{summary.answer_cases} |"
         )
     typer.echo(f"Wrote comparison reports: {out_dir}")
+
+
+@app.command("run-config")
+def run_config_command(
+    config_path: str,
+    out_dir: str = typer.Option("reports/runs", "--out-dir", help="Directory for run outputs."),
+    seed: int = typer.Option(42, "--seed", help="Random seed for deterministic data generation."),
+) -> None:
+    """Run a supported bounded local experiment config."""
+    try:
+        config = ExperimentConfig.model_validate(read_yaml(config_path))
+        result = run_experiment_config(config, out_dir=out_dir, seed=seed)
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"Run ID: {result.run_id}")
+    typer.echo(f"Status: {result.status}")
+    typer.echo("Metrics:")
+    for metric in result.metrics:
+        typer.echo(f"- {metric.name}: {metric.value:.6f}")
+    typer.echo("Artifacts:")
+    for artifact in result.artifacts:
+        typer.echo(f"- {artifact.name} ({artifact.artifact_type}): {artifact.path}")
+
+
+@app.command("suggest-config")
+def suggest_config_command(
+    path: str,
+    query: str,
+    out: str | None = typer.Option(None, "--out", help="Write suggested config to YAML."),
+    retriever: str = typer.Option("tfidf", help="Retriever backend: tfidf or embedding."),
+    top_k: int = typer.Option(5, help="Maximum number of retrieval results."),
+    min_score: float = typer.Option(0.05, help="Minimum retrieval score for evidence."),
+    chunk_size: int = typer.Option(1200, help="Maximum characters per chunk."),
+    overlap: int = typer.Option(200, help="Characters shared between neighboring chunks."),
+) -> None:
+    """Suggest a heuristic experiment config from local document evidence."""
+    try:
+        evidence = _build_evidence_from_document(
+            path=path,
+            query=query,
+            top_k=top_k,
+            min_score=min_score,
+            chunk_size=chunk_size,
+            overlap=overlap,
+            retriever_kind=retriever,
+        )
+        extracted_claims = extract_experiment_claims(evidence)
+        config = suggest_experiment_config(extracted_claims)
+        if config is not None and out:
+            write_yaml(out, config.model_dump())
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    if config is None:
+        typer.echo("No experiment config could be suggested from retrieved evidence.")
+        return
+
+    typer.echo("Suggested config:")
+    typer.echo(f"task: {config.task}")
+    typer.echo(f"dataset: {config.dataset or 'not_specified'}")
+    typer.echo(f"models: {', '.join(config.models) if config.models else 'not_specified'}")
+    typer.echo(f"metrics: {', '.join(config.metrics) if config.metrics else 'not_specified'}")
+    typer.echo(f"validation_strategy: {config.validation_strategy}")
+    if out:
+        typer.echo(f"Wrote config: {out}")
 
 
 if __name__ == "__main__":

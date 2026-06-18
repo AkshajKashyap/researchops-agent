@@ -27,6 +27,7 @@ METRIC_PATTERNS = {
     "AUC": r"\bauc\b",
 }
 MODEL_PATTERNS = (
+    "mean_baseline",
     "Random Forest",
     "Logistic Regression",
     "Linear Regression",
@@ -67,6 +68,9 @@ def _extract_models(text: str) -> list[str]:
 
 
 def _extract_dataset(text: str) -> str | None:
+    if re.search(r"\bsynthetic_sine\b", text, flags=re.IGNORECASE):
+        return "synthetic_sine"
+
     patterns = (
         r"\b(?:on|using|from)\s+(?:the\s+)?([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,3})\s+dataset\b",
         r"\bdataset\s+(?:is|was|:)?\s*(?:the\s+)?([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,3})\b",
@@ -75,6 +79,14 @@ def _extract_dataset(text: str) -> str | None:
         match = re.search(pattern, text)
         if match:
             return match.group(1).strip()
+    return None
+
+
+def _extract_task(text: str) -> str | None:
+    if re.search(r"\btime_series_forecasting\b", text, flags=re.IGNORECASE):
+        return "time_series_forecasting"
+    if re.search(r"\btime-series forecasting\b", text, flags=re.IGNORECASE):
+        return "time_series_forecasting"
     return None
 
 
@@ -109,6 +121,7 @@ def extract_experiment_claims(pack: EvidencePack, max_claims: int = 5) -> list[E
 
             claims.append(
                 ExperimentClaim(
+                    task=_extract_task(candidate),
                     dataset=_extract_dataset(candidate),
                     models=_dedupe(_extract_models(candidate)),
                     metrics=_dedupe(_extract_metrics(candidate)),

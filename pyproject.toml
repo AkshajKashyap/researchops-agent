@@ -9,6 +9,7 @@ dependencies = [
 "uvicorn",
 "pydantic",
 "python-dotenv",
+"pyyaml",
 "pypdf",
 "markdown",
 "numpy",

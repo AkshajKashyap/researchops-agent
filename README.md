@@ -93,6 +93,25 @@ beat TF-IDF on a tiny demo corpus. The evaluation harness exists to measure this
 assuming it. The first real embedding run may need to download the local sentence-transformers
 model.
 
+## Current Bounded Experiment Runner MVP
+
+The project can now close a safe local ResearchOps loop:
+
+- Suggest experiment configs from document evidence.
+- Validate whether configs are runnable by the bounded local runner.
+- Run a toy time-series forecasting experiment.
+- Compare `mean_baseline` and `ridge`.
+- Write metrics and artifacts to a run directory.
+- Avoid arbitrary shell command or Python code execution.
+
+```bash
+researchops suggest-config examples/docs/time_series_note.md "What experiment is described?" --out configs/suggested.yaml --retriever tfidf
+researchops run-config configs/time_series_demo.yaml --out-dir reports/runs
+```
+
+Honesty note: the runner only supports a small local time-series forecasting task right now. It
+is designed to demonstrate safe ResearchOps orchestration, not to reproduce arbitrary papers.
+
 The system will:
 
 ingest PDFs, Markdown files, and repo docs

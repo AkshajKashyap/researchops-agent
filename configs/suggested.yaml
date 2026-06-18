@@ -1,0 +1,13 @@
+task: time_series_forecasting
+dataset: EnergyDemand-2024
+models:
+- ridge
+- LSTM
+- Transformer
+- baseline
+metrics:
+- rmse
+- mae
+validation_strategy: chronological_split
+notes:
+- Suggested config is heuristic and should be reviewed before running.

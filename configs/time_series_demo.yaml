@@ -1,0 +1,11 @@
+task: time_series_forecasting
+dataset: synthetic_sine
+models:
+  - mean_baseline
+  - ridge
+metrics:
+  - rmse
+  - mae
+validation_strategy: chronological_split
+notes:
+  - This is a bounded local demo config for the safe experiment runner.
