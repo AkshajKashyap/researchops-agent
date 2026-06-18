@@ -27,6 +27,17 @@ This proves that retrieval and citations work before adding any LLM-based answer
 researchops retrieve data/raw/example.md "What is the paper about?"
 ```
 
+## Current Answering MVP
+
+The system can now build citation-ready evidence packs from retrieval results and answer from
+the top retrieved evidence. Answering is extractive, deterministic, and abstains when retrieved
+evidence is insufficient. This intentionally comes before LLM-based answering so citations and
+evidence handling are trustworthy first.
+
+```bash
+researchops ask data/raw/example.md "What is this document about?"
+```
+
 The system will:
 
 ingest PDFs, Markdown files, and repo docs

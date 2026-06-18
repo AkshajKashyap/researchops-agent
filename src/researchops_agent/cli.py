@@ -1,7 +1,9 @@
 import typer
 
+from researchops_agent.agents.extractive import answer_from_evidence
 from researchops_agent.ingestion.chunking import chunk_pages
 from researchops_agent.ingestion.loaders import load_document
+from researchops_agent.retrieval.evidence import build_evidence_pack
 from researchops_agent.retrieval.tfidf import TfidfRetriever
 
 app = typer.Typer(help="ResearchOps Agent CLI")
@@ -64,6 +66,37 @@ def retrieve(
         typer.echo(f"Preview: {preview}")
         if rank < len(retrieval.results):
             typer.echo("")
+
+
+@app.command()
+def ask(
+    path: str,
+    query: str,
+    top_k: int = typer.Option(5, help="Maximum number of retrieval results."),
+    min_score: float = typer.Option(0.05, help="Minimum retrieval score for evidence."),
+    chunk_size: int = typer.Option(1200, help="Maximum characters per chunk."),
+    overlap: int = typer.Option(200, help="Characters shared between neighboring chunks."),
+) -> None:
+    """Answer from retrieved local evidence without generation."""
+    try:
+        pages = load_document(path)
+        chunks = chunk_pages(pages, chunk_size=chunk_size, overlap=overlap)
+        retriever = TfidfRetriever()
+        retriever.fit(chunks)
+        retrieval = retriever.search(query, top_k=top_k)
+        evidence = build_evidence_pack(retrieval, min_score=min_score)
+        answer = answer_from_evidence(evidence)
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"Answer: {answer.answer}")
+    typer.echo(f"Abstained: {answer.abstained}")
+    if answer.reason:
+        typer.echo(f"Reason: {answer.reason}")
+    if answer.citations:
+        typer.echo("Citations:")
+        for citation in answer.citations:
+            typer.echo(f"- {citation}")
 
 
 if __name__ == "__main__":
