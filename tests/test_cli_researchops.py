@@ -19,6 +19,8 @@ def test_report_command_works_on_temp_markdown_file(tmp_path) -> None:
             "report",
             str(document),
             "Ridge accuracy F1 MIMIC",
+            "--retriever",
+            "tfidf",
             "--out",
             str(output),
         ],
@@ -38,9 +40,40 @@ def test_claims_command_works_on_temp_markdown_file(tmp_path) -> None:
         encoding="utf-8",
     )
 
-    result = CliRunner().invoke(app, ["claims", str(document), "Ridge accuracy MIMIC"])
+    result = CliRunner().invoke(
+        app,
+        ["claims", str(document), "Ridge accuracy MIMIC", "--retriever", "tfidf"],
+    )
 
     assert result.exit_code == 0
     assert "Claims: 2" in result.output
     assert "Ridge" in result.output
     assert "accuracy" in result.output
+
+
+def test_retrieve_command_works_with_tfidf_retriever(tmp_path) -> None:
+    document = tmp_path / "example.md"
+    document.write_text("Ridge and LSTM are compared using RMSE.", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        ["retrieve", str(document), "Ridge RMSE", "--retriever", "tfidf"],
+    )
+
+    assert result.exit_code == 0
+    assert "Rank: 1" in result.output
+    assert "Ridge" in result.output
+
+
+def test_ask_command_works_with_tfidf_retriever(tmp_path) -> None:
+    document = tmp_path / "example.md"
+    document.write_text("Ridge and LSTM are compared using RMSE.", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        ["ask", str(document), "Ridge RMSE", "--retriever", "tfidf"],
+    )
+
+    assert result.exit_code == 0
+    assert "Answer:" in result.output
+    assert "Abstained: False" in result.output

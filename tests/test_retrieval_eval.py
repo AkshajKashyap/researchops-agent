@@ -19,7 +19,7 @@ def test_retrieval_eval_hits_when_expected_substring_is_retrieved(tmp_path) -> N
         expected_substrings=["Ridge and LSTM"],
     )
 
-    results = evaluate_retrieval([case], top_k=1)
+    results = evaluate_retrieval([case], top_k=1, retriever_kind="tfidf")
 
     assert results[0].hit is True
     assert results[0].matched_substrings == ["Ridge and LSTM"]
@@ -52,3 +52,16 @@ def test_retrieval_eval_rejects_invalid_top_k(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="top_k must be positive"):
         evaluate_retrieval([case], top_k=0)
+
+
+def test_retrieval_eval_rejects_invalid_retriever_kind(tmp_path) -> None:
+    document_path = _document(tmp_path, "We compare Ridge using RMSE.")
+    case = RetrievalEvalCase(
+        case_id="invalid",
+        document_path=document_path,
+        query="Ridge",
+        expected_substrings=["Ridge"],
+    )
+
+    with pytest.raises(ValueError, match="Unsupported retriever kind"):
+        evaluate_retrieval([case], retriever_kind="unknown")

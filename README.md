@@ -74,6 +74,25 @@ researchops eval --retrieval-cases examples/eval/retrieval_cases.json --answer-c
 Honesty note: the current evaluation harness is small and deterministic. It measures basic
 evidence retrieval and extractive answer grounding, not full natural-language answer quality.
 
+## Current Retrieval Comparison MVP
+
+TF-IDF retrieval remains the deterministic baseline, and local embedding retrieval is now
+available through `sentence-transformers`. Retrieval backends are selectable through the CLI,
+and the evaluation harness can compare backend hit rates and pass rates. Tests avoid external
+model downloads by using fake embedding models.
+
+```bash
+researchops retrieve examples/docs/time_series_note.md "What models were compared?" --retriever tfidf
+researchops retrieve examples/docs/time_series_note.md "What models were compared?" --retriever embedding
+researchops eval --retriever tfidf --retrieval-cases examples/eval/retrieval_cases.json --answer-cases examples/eval/answer_cases.json --out-json reports/evaluation.json --out-md reports/evaluation.md
+researchops compare-retrievers --retrievers tfidf,embedding --retrieval-cases examples/eval/retrieval_cases.json --answer-cases examples/eval/answer_cases.json --out-dir reports/retriever_comparison
+```
+
+Honesty note: embedding retrieval can improve semantic matching, but it is not guaranteed to
+beat TF-IDF on a tiny demo corpus. The evaluation harness exists to measure this instead of
+assuming it. The first real embedding run may need to download the local sentence-transformers
+model.
+
 The system will:
 
 ingest PDFs, Markdown files, and repo docs

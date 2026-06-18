@@ -2,7 +2,7 @@ from researchops_agent.agents.extractive import answer_from_evidence
 from researchops_agent.ingestion.chunking import chunk_pages
 from researchops_agent.ingestion.loaders import load_document
 from researchops_agent.retrieval.evidence import build_evidence_pack
-from researchops_agent.retrieval.tfidf import TfidfRetriever
+from researchops_agent.retrieval import factory as retriever_factory
 from researchops_agent.schemas.evaluation import AnswerEvalCase, AnswerEvalResult
 
 
@@ -11,12 +11,14 @@ def _matched_substrings(expected: list[str], text: str) -> list[str]:
     return [substring for substring in expected if substring.lower() in lowered_text]
 
 
-def evaluate_answers(cases: list[AnswerEvalCase]) -> list[AnswerEvalResult]:
+def evaluate_answers(
+    cases: list[AnswerEvalCase], retriever_kind: str = "tfidf"
+) -> list[AnswerEvalResult]:
     results: list[AnswerEvalResult] = []
     for case in cases:
         pages = load_document(case.document_path)
         chunks = chunk_pages(pages)
-        retriever = TfidfRetriever()
+        retriever = retriever_factory.build_retriever(retriever_kind)
         retriever.fit(chunks)
         retrieval = retriever.search(case.query, top_k=5)
         evidence = build_evidence_pack(retrieval, min_score=0.05)

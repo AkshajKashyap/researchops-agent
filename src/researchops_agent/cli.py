@@ -1,9 +1,12 @@
+from pathlib import Path
+
 import typer
 
 from researchops_agent.agents.claim_extractor import extract_experiment_claims
 from researchops_agent.agents.extractive import answer_from_evidence
 from researchops_agent.agents.report_builder import build_research_report
 from researchops_agent.evaluation.answer_eval import evaluate_answers
+from researchops_agent.evaluation.compare import compare_retrievers
 from researchops_agent.evaluation.load_cases import load_answer_cases, load_retrieval_cases
 from researchops_agent.evaluation.report import (
     build_evaluation_report,
@@ -13,7 +16,7 @@ from researchops_agent.evaluation.retrieval_eval import evaluate_retrieval
 from researchops_agent.ingestion.chunking import chunk_pages
 from researchops_agent.ingestion.loaders import load_document
 from researchops_agent.retrieval.evidence import build_evidence_pack
-from researchops_agent.retrieval.tfidf import TfidfRetriever
+from researchops_agent.retrieval.factory import build_retriever
 from researchops_agent.schemas.answer import EvidencePack
 from researchops_agent.utils.json_io import write_json
 from researchops_agent.utils.text_io import write_text
@@ -28,13 +31,21 @@ def _build_evidence_from_document(
     min_score: float,
     chunk_size: int,
     overlap: int,
+    retriever_kind: str,
 ) -> EvidencePack:
     pages = load_document(path)
     chunks = chunk_pages(pages, chunk_size=chunk_size, overlap=overlap)
-    retriever = TfidfRetriever()
+    retriever = build_retriever(retriever_kind)
     retriever.fit(chunks)
     retrieval = retriever.search(query, top_k=top_k)
     return build_evidence_pack(retrieval, min_score=min_score)
+
+
+def _parse_retriever_kinds(retrievers: str) -> list[str]:
+    kinds = [kind.strip() for kind in retrievers.split(",") if kind.strip()]
+    if not kinds:
+        raise ValueError("retrievers must not be empty")
+    return kinds
 
 
 @app.command()
@@ -69,17 +80,18 @@ def ingest(
 def retrieve(
     path: str,
     query: str,
+    retriever: str = typer.Option("tfidf", help="Retriever backend: tfidf or embedding."),
     top_k: int = typer.Option(5, help="Maximum number of retrieval results."),
     chunk_size: int = typer.Option(1200, help="Maximum characters per chunk."),
     overlap: int = typer.Option(200, help="Characters shared between neighboring chunks."),
 ) -> None:
-    """Search a local document with TF-IDF retrieval."""
+    """Search a local document with a selected retrieval backend."""
     try:
         pages = load_document(path)
         chunks = chunk_pages(pages, chunk_size=chunk_size, overlap=overlap)
-        retriever = TfidfRetriever()
-        retriever.fit(chunks)
-        retrieval = retriever.search(query, top_k=top_k)
+        retriever_model = build_retriever(retriever)
+        retriever_model.fit(chunks)
+        retrieval = retriever_model.search(query, top_k=top_k)
     except (FileNotFoundError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
 
@@ -100,6 +112,7 @@ def retrieve(
 def ask(
     path: str,
     query: str,
+    retriever: str = typer.Option("tfidf", help="Retriever backend: tfidf or embedding."),
     top_k: int = typer.Option(5, help="Maximum number of retrieval results."),
     min_score: float = typer.Option(0.05, help="Minimum retrieval score for evidence."),
     chunk_size: int = typer.Option(1200, help="Maximum characters per chunk."),
@@ -114,6 +127,7 @@ def ask(
             min_score=min_score,
             chunk_size=chunk_size,
             overlap=overlap,
+            retriever_kind=retriever,
         )
         answer = answer_from_evidence(evidence)
     except (FileNotFoundError, ValueError) as exc:
@@ -133,6 +147,7 @@ def ask(
 def claims(
     path: str,
     query: str,
+    retriever: str = typer.Option("tfidf", help="Retriever backend: tfidf or embedding."),
     top_k: int = typer.Option(5, help="Maximum number of retrieval results."),
     min_score: float = typer.Option(0.05, help="Minimum retrieval score for evidence."),
     chunk_size: int = typer.Option(1200, help="Maximum characters per chunk."),
@@ -147,6 +162,7 @@ def claims(
             min_score=min_score,
             chunk_size=chunk_size,
             overlap=overlap,
+            retriever_kind=retriever,
         )
         extracted_claims = extract_experiment_claims(evidence)
     except (FileNotFoundError, ValueError) as exc:
@@ -172,6 +188,7 @@ def report(
     path: str,
     query: str,
     out: str | None = typer.Option(None, "--out", help="Write the full report to JSON."),
+    retriever: str = typer.Option("tfidf", help="Retriever backend: tfidf or embedding."),
     top_k: int = typer.Option(5, help="Maximum number of retrieval results."),
     min_score: float = typer.Option(0.05, help="Minimum retrieval score for evidence."),
     chunk_size: int = typer.Option(1200, help="Maximum characters per chunk."),
@@ -186,6 +203,7 @@ def report(
             min_score=min_score,
             chunk_size=chunk_size,
             overlap=overlap,
+            retriever_kind=retriever,
         )
         answer = answer_from_evidence(evidence)
         extracted_claims = extract_experiment_claims(evidence)
@@ -223,6 +241,11 @@ def report(
 
 @app.command("eval")
 def eval_command(
+    retriever: str = typer.Option(
+        "tfidf",
+        "--retriever",
+        help="Retriever backend: tfidf or embedding.",
+    ),
     retrieval_cases: str = typer.Option(
         "examples/eval/retrieval_cases.json",
         "--retrieval-cases",
@@ -249,8 +272,10 @@ def eval_command(
     try:
         retrieval_case_data = load_retrieval_cases(retrieval_cases)
         answer_case_data = load_answer_cases(answer_cases)
-        retrieval_results = evaluate_retrieval(retrieval_case_data, top_k=top_k)
-        answer_results = evaluate_answers(answer_case_data)
+        retrieval_results = evaluate_retrieval(
+            retrieval_case_data, top_k=top_k, retriever_kind=retriever
+        )
+        answer_results = evaluate_answers(answer_case_data, retriever_kind=retriever)
         evaluation_report = build_evaluation_report(retrieval_results, answer_results)
 
         if out_json:
@@ -274,6 +299,65 @@ def eval_command(
         typer.echo(f"Wrote JSON report: {out_json}")
     if out_md:
         typer.echo(f"Wrote Markdown report: {out_md}")
+
+
+@app.command("compare-retrievers")
+def compare_retrievers_command(
+    retrieval_cases: str = typer.Option(
+        "examples/eval/retrieval_cases.json",
+        "--retrieval-cases",
+        help="Path to retrieval evaluation cases JSON.",
+    ),
+    answer_cases: str = typer.Option(
+        "examples/eval/answer_cases.json",
+        "--answer-cases",
+        help="Path to answer evaluation cases JSON.",
+    ),
+    retrievers: str = typer.Option(
+        "tfidf,embedding",
+        "--retrievers",
+        help="Comma-separated retriever backends to compare.",
+    ),
+    top_k: int = typer.Option(3, "--top-k", help="Number of retrieval results to evaluate."),
+    out_dir: str = typer.Option(
+        "reports/retriever_comparison",
+        "--out-dir",
+        help="Directory for per-retriever evaluation reports.",
+    ),
+) -> None:
+    """Compare local retriever backends on the evaluation cases."""
+    try:
+        retriever_kinds = _parse_retriever_kinds(retrievers)
+        retrieval_case_data = load_retrieval_cases(retrieval_cases)
+        answer_case_data = load_answer_cases(answer_cases)
+        reports = compare_retrievers(
+            retrieval_cases=retrieval_case_data,
+            answer_cases=answer_case_data,
+            retriever_kinds=retriever_kinds,
+            top_k=top_k,
+        )
+
+        output_dir = Path(out_dir)
+        for retriever_kind, evaluation_report in reports.items():
+            json_path = output_dir / f"{retriever_kind}_evaluation.json"
+            markdown_path = output_dir / f"{retriever_kind}_evaluation.md"
+            write_json(str(json_path), evaluation_report)
+            write_text(str(markdown_path), format_evaluation_markdown(evaluation_report))
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo("| Retriever | Retrieval hit rate | Answer pass rate | Retrieval cases | Answer cases |")
+    typer.echo("| --- | ---: | ---: | ---: | ---: |")
+    for retriever_kind, evaluation_report in reports.items():
+        summary = evaluation_report.summary
+        typer.echo(
+            f"| {retriever_kind} | "
+            f"{summary.retrieval_hit_rate:.2f} | "
+            f"{summary.answer_pass_rate:.2f} | "
+            f"{summary.retrieval_cases} | "
+            f"{summary.answer_cases} |"
+        )
+    typer.echo(f"Wrote comparison reports: {out_dir}")
 
 
 if __name__ == "__main__":

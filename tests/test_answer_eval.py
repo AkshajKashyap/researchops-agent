@@ -20,7 +20,7 @@ def test_answer_eval_passes_when_substring_is_supported_by_answer_or_evidence(tm
         expected_answer_substrings=["Ridge", "RMSE"],
     )
 
-    results = evaluate_answers([case])
+    results = evaluate_answers([case], retriever_kind="tfidf")
 
     assert results[0].passed is True
     assert results[0].matched_substrings == ["Ridge", "RMSE"]

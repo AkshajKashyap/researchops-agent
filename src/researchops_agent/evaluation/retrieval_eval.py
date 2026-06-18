@@ -1,7 +1,7 @@
 from researchops_agent.ingestion.chunking import chunk_pages
 from researchops_agent.ingestion.loaders import load_document
 from researchops_agent.retrieval.citations import format_citation
-from researchops_agent.retrieval.tfidf import TfidfRetriever
+from researchops_agent.retrieval import factory as retriever_factory
 from researchops_agent.schemas.evaluation import RetrievalEvalCase, RetrievalEvalResult
 
 
@@ -15,7 +15,7 @@ def _matched_substrings(expected: list[str], texts: list[str]) -> list[str]:
 
 
 def evaluate_retrieval(
-    cases: list[RetrievalEvalCase], top_k: int = 3
+    cases: list[RetrievalEvalCase], top_k: int = 3, retriever_kind: str = "tfidf"
 ) -> list[RetrievalEvalResult]:
     if top_k <= 0:
         raise ValueError("top_k must be positive")
@@ -24,7 +24,7 @@ def evaluate_retrieval(
     for case in cases:
         pages = load_document(case.document_path)
         chunks = chunk_pages(pages)
-        retriever = TfidfRetriever()
+        retriever = retriever_factory.build_retriever(retriever_kind)
         retriever.fit(chunks)
         retrieval = retriever.search(case.query, top_k=top_k)
 
