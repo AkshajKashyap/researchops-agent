@@ -1,8 +1,8 @@
 import pytest
 from fastapi import HTTPException
 
-from researchops_agent.api.main import ask, health, retrieve, run_config
-from researchops_agent.schemas.api import DocumentQueryRequest, RunConfigRequest
+from researchops_agent.api.main import ask, health, llm_ask, llm_report, retrieve, run_config
+from researchops_agent.schemas.api import DocumentQueryRequest, LLMDocumentQueryRequest, RunConfigRequest
 from researchops_agent.utils.yaml_io import write_yaml
 
 
@@ -79,5 +79,53 @@ def test_api_invalid_config_returns_http_400(tmp_path) -> None:
 
     with pytest.raises(HTTPException) as exc_info:
         run_config(RunConfigRequest(config_path=str(config_path)))
+
+    assert exc_info.value.status_code == 400
+
+
+def test_api_llm_ask_works_with_fake_provider(tmp_path) -> None:
+    document = tmp_path / "note.md"
+    document.write_text("Ridge and LSTM are compared using RMSE.", encoding="utf-8")
+
+    response = llm_ask(
+        LLMDocumentQueryRequest(
+            path=str(document),
+            query="What models were compared?",
+            provider="fake",
+        )
+    )
+
+    assert response.abstained is False
+    assert response.citations
+
+
+def test_api_llm_report_works_with_fake_provider(tmp_path) -> None:
+    document = tmp_path / "note.md"
+    document.write_text("We compare Ridge using RMSE.", encoding="utf-8")
+
+    response = llm_report(
+        LLMDocumentQueryRequest(
+            path=str(document),
+            query="Ridge RMSE",
+            provider="fake",
+        )
+    )
+
+    assert response.answer
+    assert response.citations
+
+
+def test_api_llm_invalid_provider_returns_http_400(tmp_path) -> None:
+    document = tmp_path / "note.md"
+    document.write_text("Ridge is compared using RMSE.", encoding="utf-8")
+
+    with pytest.raises(HTTPException) as exc_info:
+        llm_ask(
+            LLMDocumentQueryRequest(
+                path=str(document),
+                query="Ridge RMSE",
+                provider="unknown",
+            )
+        )
 
     assert exc_info.value.status_code == 400

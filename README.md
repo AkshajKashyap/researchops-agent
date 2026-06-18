@@ -149,6 +149,24 @@ curl -X POST http://localhost:8000/run-config \
 Honesty note: the API and dashboard wrap deterministic local functionality. This is not yet an
 LLM agent, and the bounded runner only supports a small explicit set of experiment configs.
 
+## Current Optional LLM Grounded Answering MVP
+
+Deterministic extractive answering remains the safe baseline. The optional LLM layer adds a
+provider abstraction with a fake provider for offline tests/demos and an OpenAI provider that
+requires environment configuration. LLM answers are validated against retrieved citations:
+unsupported, uncited, or empty answers are forced to abstain. Trace logs store metadata only,
+not full evidence text, prompts, or secrets.
+
+```bash
+researchops llm-ask examples/docs/time_series_note.md "What models were compared?" --provider fake --retriever tfidf
+researchops llm-report examples/docs/time_series_note.md "What experiment is described?" --provider fake --out reports/llm_report.json
+researchops eval-llm --answer-cases examples/eval/answer_cases.json --provider fake --out-json reports/llm_answer_eval.json --out-md reports/llm_answer_eval.md
+OPENAI_MODEL=<your_model> researchops llm-ask examples/docs/time_series_note.md "What models were compared?" --provider openai --retriever tfidf
+```
+
+Honesty note: the LLM layer is optional and grounded by retrieved evidence. It is not allowed
+to browse the web, execute code, or cite sources outside the evidence pack.
+
 The system will:
 
 ingest PDFs, Markdown files, and repo docs

@@ -19,3 +19,13 @@ class EvalRequest(BaseModel):
     answer_cases: str = "examples/eval/answer_cases.json"
     retriever: str = "tfidf"
     top_k: int = 3
+
+
+class LLMDocumentQueryRequest(BaseModel):
+    path: str
+    query: str
+    retriever: str = "tfidf"
+    top_k: int = 5
+    provider: str = "fake"
+    model: str | None = None
+    trace_path: str | None = None

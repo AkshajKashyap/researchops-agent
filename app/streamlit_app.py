@@ -10,6 +10,8 @@ from researchops_agent.pipeline import (
     build_report_from_document,
     extract_claims_from_document,
     load_chunk_retrieve,
+    llm_ask_document,
+    llm_report_from_document,
     suggest_config_from_document,
 )
 from researchops_agent.runner.experiment_runner import run_experiment_config
@@ -46,6 +48,7 @@ tabs = st.tabs(
         "Suggest Config",
         "Run Config",
         "Evaluation",
+        "LLM Grounded Answer",
     ]
 )
 
@@ -115,3 +118,40 @@ with tabs[6]:
         report = build_evaluation_report(retrieval_results, answer_results)
         st.json(report.model_dump())
         st.markdown(format_evaluation_markdown(report))
+
+with tabs[7]:
+    st.subheader("LLM Grounded Answer")
+    st.info(
+        "The fake provider is deterministic and offline. The OpenAI provider requires "
+        "environment configuration and must still cite retrieved evidence."
+    )
+    path, query, retriever, top_k = _query_controls("llm")
+    provider = st.selectbox("LLM provider", ["fake", "openai"], key="llm_provider")
+    model = st.text_input("Model", "", key="llm_model")
+    trace_path = st.text_input(
+        "Trace path",
+        "reports/traces/llm_traces.jsonl",
+        key="llm_trace",
+    )
+    if st.button("LLM Ask", key="llm_ask_button"):
+        answer = llm_ask_document(
+            path,
+            query,
+            retriever_kind=retriever,
+            top_k=top_k,
+            provider=provider,
+            model=model or None,
+            trace_path=trace_path or None,
+        )
+        st.json(answer.model_dump())
+    if st.button("LLM Report", key="llm_report_button"):
+        report = llm_report_from_document(
+            path,
+            query,
+            retriever_kind=retriever,
+            top_k=top_k,
+            provider=provider,
+            model=model or None,
+            trace_path=trace_path or None,
+        )
+        st.json(report.model_dump())

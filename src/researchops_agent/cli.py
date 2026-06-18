@@ -7,6 +7,7 @@ from researchops_agent.agents.extractive import answer_from_evidence
 from researchops_agent.agents.report_builder import build_research_report
 from researchops_agent.evaluation.answer_eval import evaluate_answers
 from researchops_agent.evaluation.compare import compare_retrievers
+from researchops_agent.evaluation.llm_answer_eval import evaluate_llm_answers
 from researchops_agent.evaluation.load_cases import load_answer_cases, load_retrieval_cases
 from researchops_agent.evaluation.report import (
     build_evaluation_report,
@@ -16,6 +17,8 @@ from researchops_agent.evaluation.retrieval_eval import evaluate_retrieval
 from researchops_agent.pipeline import (
     build_evidence_from_document,
     load_chunk_retrieve,
+    llm_ask_document,
+    llm_report_from_document,
     suggest_config_from_document,
 )
 from researchops_agent.ingestion.chunking import chunk_pages
@@ -450,6 +453,148 @@ def suggest_config_command(
     typer.echo(f"validation_strategy: {config.validation_strategy}")
     if out:
         typer.echo(f"Wrote config: {out}")
+
+
+@app.command("llm-ask")
+def llm_ask_command(
+    path: str,
+    query: str,
+    retriever: str = typer.Option("tfidf", "--retriever", help="Retriever backend."),
+    top_k: int = typer.Option(5, "--top-k", help="Maximum number of retrieval results."),
+    provider: str = typer.Option("fake", "--provider", help="LLM provider: fake or openai."),
+    model: str | None = typer.Option(None, "--model", help="LLM model name."),
+    trace: str | None = typer.Option(
+        "reports/traces/llm_traces.jsonl",
+        "--trace",
+        help="Path for JSONL trace metadata.",
+    ),
+) -> None:
+    """Answer with an optional grounded LLM provider."""
+    try:
+        answer = llm_ask_document(
+            path,
+            query,
+            retriever_kind=retriever,
+            top_k=top_k,
+            provider=provider,
+            model=model,
+            trace_path=trace,
+        )
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"Answer: {answer.answer}")
+    typer.echo(f"Abstained: {answer.abstained}")
+    if answer.reason:
+        typer.echo(f"Reason: {answer.reason}")
+    if answer.citations:
+        typer.echo("Citations:")
+        for citation in answer.citations:
+            typer.echo(f"- {citation}")
+
+
+@app.command("llm-report")
+def llm_report_command(
+    path: str,
+    query: str,
+    retriever: str = typer.Option("tfidf", "--retriever", help="Retriever backend."),
+    top_k: int = typer.Option(5, "--top-k", help="Maximum number of retrieval results."),
+    provider: str = typer.Option("fake", "--provider", help="LLM provider: fake or openai."),
+    model: str | None = typer.Option(None, "--model", help="LLM model name."),
+    out: str | None = typer.Option(
+        "reports/llm_report.json",
+        "--out",
+        help="Write the LLM report to JSON.",
+    ),
+    trace: str | None = typer.Option(
+        "reports/traces/llm_traces.jsonl",
+        "--trace",
+        help="Path for JSONL trace metadata.",
+    ),
+) -> None:
+    """Build a report with an optional grounded LLM answer."""
+    try:
+        report = llm_report_from_document(
+            path,
+            query,
+            retriever_kind=retriever,
+            top_k=top_k,
+            provider=provider,
+            model=model,
+            trace_path=trace,
+        )
+        if out:
+            write_json(out, report)
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"Answer: {report.answer}")
+    if report.citations:
+        typer.echo("Citations:")
+        for citation in report.citations:
+            typer.echo(f"- {citation}")
+    typer.echo(f"Claims: {len(report.claims)}")
+    if report.suggested_config:
+        config = report.suggested_config
+        typer.echo("Suggested config:")
+        typer.echo(f"Task: {config.task}")
+        typer.echo(f"Dataset: {config.dataset or 'not_specified'}")
+        typer.echo(f"Models: {', '.join(config.models) if config.models else 'not_specified'}")
+        typer.echo(f"Metrics: {', '.join(config.metrics) if config.metrics else 'not_specified'}")
+        typer.echo(f"Validation: {config.validation_strategy}")
+    else:
+        typer.echo("Suggested config: none")
+    if out:
+        typer.echo(f"Wrote report: {out}")
+
+
+@app.command("eval-llm")
+def eval_llm_command(
+    answer_cases: str = typer.Option(
+        "examples/eval/answer_cases.json",
+        "--answer-cases",
+        help="Path to answer evaluation cases JSON.",
+    ),
+    retriever: str = typer.Option("tfidf", "--retriever", help="Retriever backend."),
+    provider: str = typer.Option("fake", "--provider", help="LLM provider: fake or openai."),
+    model: str | None = typer.Option(None, "--model", help="LLM model name."),
+    out_json: str | None = typer.Option(
+        "reports/llm_answer_eval.json",
+        "--out-json",
+        help="Write LLM answer evaluation to JSON.",
+    ),
+    out_md: str | None = typer.Option(
+        "reports/llm_answer_eval.md",
+        "--out-md",
+        help="Write LLM answer evaluation to Markdown.",
+    ),
+) -> None:
+    """Evaluate grounded LLM answers against local answer cases."""
+    try:
+        answer_case_data = load_answer_cases(answer_cases)
+        answer_results = evaluate_llm_answers(
+            answer_case_data,
+            retriever_kind=retriever,
+            provider=provider,
+            model=model,
+        )
+        evaluation_report = build_evaluation_report([], answer_results)
+        if out_json:
+            write_json(out_json, evaluation_report)
+        if out_md:
+            write_text(out_md, format_evaluation_markdown(evaluation_report))
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    summary = evaluation_report.summary
+    typer.echo(
+        f"LLM answer pass rate: {summary.answer_pass_rate:.2f} "
+        f"({summary.answer_passes}/{summary.answer_cases})"
+    )
+    if out_json:
+        typer.echo(f"Wrote JSON report: {out_json}")
+    if out_md:
+        typer.echo(f"Wrote Markdown report: {out_md}")
 
 
 if __name__ == "__main__":

@@ -10,12 +10,20 @@ from researchops_agent.pipeline import (
     build_report_from_document,
     extract_claims_from_document,
     load_chunk_retrieve,
+    llm_ask_document,
+    llm_report_from_document,
     suggest_config_from_document,
 )
 from researchops_agent.runner.experiment_runner import run_experiment_config
-from researchops_agent.schemas.api import DocumentQueryRequest, EvalRequest, RunConfigRequest
+from researchops_agent.schemas.api import (
+    DocumentQueryRequest,
+    EvalRequest,
+    LLMDocumentQueryRequest,
+    RunConfigRequest,
+)
 from researchops_agent.schemas.evaluation import EvaluationReport
 from researchops_agent.schemas.experiment import ExperimentClaim, ExperimentConfig, ResearchReport
+from researchops_agent.schemas.llm import GroundedLLMAnswer
 from researchops_agent.schemas.retrieval import RetrievalResult
 from researchops_agent.schemas.run import ExperimentRunResult
 from researchops_agent.schemas.answer import ExtractiveAnswer
@@ -42,7 +50,7 @@ def retrieve(request: DocumentQueryRequest) -> RetrievalResult:
             retriever_kind=request.retriever,
             top_k=request.top_k,
         )
-    except (FileNotFoundError, ValueError) as exc:
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
         raise _as_bad_request(exc) from exc
 
 
@@ -55,7 +63,7 @@ def ask(request: DocumentQueryRequest) -> ExtractiveAnswer:
             retriever_kind=request.retriever,
             top_k=request.top_k,
         )
-    except (FileNotFoundError, ValueError) as exc:
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
         raise _as_bad_request(exc) from exc
 
 
@@ -123,5 +131,37 @@ def eval_endpoint(request: EvalRequest) -> EvaluationReport:
         )
         answer_results = evaluate_answers(answer_cases, retriever_kind=request.retriever)
         return build_evaluation_report(retrieval_results, answer_results)
+    except (FileNotFoundError, ValueError) as exc:
+        raise _as_bad_request(exc) from exc
+
+
+@app.post("/llm/ask")
+def llm_ask(request: LLMDocumentQueryRequest) -> GroundedLLMAnswer:
+    try:
+        return llm_ask_document(
+            request.path,
+            request.query,
+            retriever_kind=request.retriever,
+            top_k=request.top_k,
+            provider=request.provider,
+            model=request.model,
+            trace_path=request.trace_path,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise _as_bad_request(exc) from exc
+
+
+@app.post("/llm/report")
+def llm_report(request: LLMDocumentQueryRequest) -> ResearchReport:
+    try:
+        return llm_report_from_document(
+            request.path,
+            request.query,
+            retriever_kind=request.retriever,
+            top_k=request.top_k,
+            provider=request.provider,
+            model=request.model,
+            trace_path=request.trace_path,
+        )
     except (FileNotFoundError, ValueError) as exc:
         raise _as_bad_request(exc) from exc
