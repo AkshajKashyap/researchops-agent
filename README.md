@@ -112,6 +112,43 @@ researchops run-config configs/time_series_demo.yaml --out-dir reports/runs
 Honesty note: the runner only supports a small local time-series forecasting task right now. It
 is designed to demonstrate safe ResearchOps orchestration, not to reproduce arbitrary papers.
 
+## Current API and Dashboard MVP
+
+The project now supports a local demo surface around the same deterministic core:
+
+- CLI usage for ingestion, retrieval, answering, reports, evaluation, and bounded runs.
+- FastAPI endpoints for document queries, reports, config suggestion, runs, and evaluation.
+- A simple Streamlit dashboard for local demos.
+- A local Dockerized API.
+- Bounded experiment runs with metrics/artifacts.
+- Local JSON and Markdown evaluation reports.
+
+```bash
+make api
+make dashboard
+make demo-eval
+make demo-run
+docker build -t researchops-agent .
+docker run -p 8000:8000 researchops-agent
+```
+
+API examples:
+
+```bash
+curl http://localhost:8000/health
+
+curl -X POST http://localhost:8000/ask \
+  -H "Content-Type: application/json" \
+  -d '{"path":"examples/docs/time_series_note.md","query":"What experiment is described?","retriever":"tfidf"}'
+
+curl -X POST http://localhost:8000/run-config \
+  -H "Content-Type: application/json" \
+  -d '{"config_path":"configs/time_series_demo.yaml","out_dir":"reports/runs","seed":42}'
+```
+
+Honesty note: the API and dashboard wrap deterministic local functionality. This is not yet an
+LLM agent, and the bounded runner only supports a small explicit set of experiment configs.
+
 The system will:
 
 ingest PDFs, Markdown files, and repo docs

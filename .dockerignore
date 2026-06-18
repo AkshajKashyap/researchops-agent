@@ -1,0 +1,10 @@
+.git
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+data/vector_store
+reports/runs
+reports/retriever_comparison
+reports/*.json
+reports/*.md

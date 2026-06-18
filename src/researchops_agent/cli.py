@@ -13,10 +13,13 @@ from researchops_agent.evaluation.report import (
     format_evaluation_markdown,
 )
 from researchops_agent.evaluation.retrieval_eval import evaluate_retrieval
+from researchops_agent.pipeline import (
+    build_evidence_from_document,
+    load_chunk_retrieve,
+    suggest_config_from_document,
+)
 from researchops_agent.ingestion.chunking import chunk_pages
 from researchops_agent.ingestion.loaders import load_document
-from researchops_agent.retrieval.evidence import build_evidence_pack
-from researchops_agent.retrieval.factory import build_retriever
 from researchops_agent.runner.config_builder import suggest_experiment_config
 from researchops_agent.runner.experiment_runner import run_experiment_config
 from researchops_agent.schemas.answer import EvidencePack
@@ -37,12 +40,23 @@ def _build_evidence_from_document(
     overlap: int,
     retriever_kind: str,
 ) -> EvidencePack:
+    if chunk_size == 1200 and overlap == 200:
+        return build_evidence_from_document(
+            path=path,
+            query=query,
+            retriever_kind=retriever_kind,
+            top_k=top_k,
+            min_score=min_score,
+        )
+
     pages = load_document(path)
     chunks = chunk_pages(pages, chunk_size=chunk_size, overlap=overlap)
+    from researchops_agent.retrieval.evidence import build_evidence_pack
+    from researchops_agent.retrieval.factory import build_retriever
+
     retriever = build_retriever(retriever_kind)
     retriever.fit(chunks)
-    retrieval = retriever.search(query, top_k=top_k)
-    return build_evidence_pack(retrieval, min_score=min_score)
+    return build_evidence_pack(retriever.search(query, top_k=top_k), min_score=min_score)
 
 
 def _parse_retriever_kinds(retrievers: str) -> list[str]:
@@ -91,11 +105,16 @@ def retrieve(
 ) -> None:
     """Search a local document with a selected retrieval backend."""
     try:
-        pages = load_document(path)
-        chunks = chunk_pages(pages, chunk_size=chunk_size, overlap=overlap)
-        retriever_model = build_retriever(retriever)
-        retriever_model.fit(chunks)
-        retrieval = retriever_model.search(query, top_k=top_k)
+        if chunk_size == 1200 and overlap == 200:
+            retrieval = load_chunk_retrieve(path, query, retriever_kind=retriever, top_k=top_k)
+        else:
+            pages = load_document(path)
+            chunks = chunk_pages(pages, chunk_size=chunk_size, overlap=overlap)
+            from researchops_agent.retrieval.factory import build_retriever
+
+            retriever_model = build_retriever(retriever)
+            retriever_model.fit(chunks)
+            retrieval = retriever_model.search(query, top_k=top_k)
     except (FileNotFoundError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
 
@@ -400,17 +419,20 @@ def suggest_config_command(
 ) -> None:
     """Suggest a heuristic experiment config from local document evidence."""
     try:
-        evidence = _build_evidence_from_document(
-            path=path,
-            query=query,
-            top_k=top_k,
-            min_score=min_score,
-            chunk_size=chunk_size,
-            overlap=overlap,
-            retriever_kind=retriever,
-        )
-        extracted_claims = extract_experiment_claims(evidence)
-        config = suggest_experiment_config(extracted_claims)
+        if top_k == 5 and min_score == 0.05 and chunk_size == 1200 and overlap == 200:
+            config = suggest_config_from_document(path, query, retriever_kind=retriever)
+        else:
+            evidence = _build_evidence_from_document(
+                path=path,
+                query=query,
+                top_k=top_k,
+                min_score=min_score,
+                chunk_size=chunk_size,
+                overlap=overlap,
+                retriever_kind=retriever,
+            )
+            extracted_claims = extract_experiment_claims(evidence)
+            config = suggest_experiment_config(extracted_claims)
         if config is not None and out:
             write_yaml(out, config.model_dump())
     except (FileNotFoundError, ValueError) as exc:
