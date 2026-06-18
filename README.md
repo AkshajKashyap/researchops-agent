@@ -3,6 +3,20 @@ ResearchOps Agent
 
 An evaluated AI research assistant for ML papers and project docs.
 
+## Current MVP
+
+The project currently supports a fully local document ingestion foundation:
+
+- Load local PDF, Markdown, and text documents.
+- Read PDFs page by page with `pypdf`.
+- Normalize basic whitespace while preserving document text.
+- Create deterministic character chunks with source path, page number, and chunk index metadata.
+- Use the CLI to inspect ingestion output:
+
+```bash
+researchops ingest data/raw/example.md
+```
+
 The system will:
 
 ingest PDFs, Markdown files, and repo docs
