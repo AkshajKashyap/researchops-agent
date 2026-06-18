@@ -57,6 +57,23 @@ researchops report data/raw/example.md "What experiment does this document descr
 Honesty note: the current system is deterministic and heuristic. It does not yet use LLM
 reasoning, external tools, or real experiment execution.
 
+## Current Evaluation MVP
+
+The project now includes a small deterministic evaluation harness:
+
+- A local demo corpus in `examples/docs/`.
+- Retrieval evaluation cases.
+- Answer evaluation cases.
+- Hit-rate and pass-rate reporting.
+- JSON and Markdown evaluation report export.
+
+```bash
+researchops eval --retrieval-cases examples/eval/retrieval_cases.json --answer-cases examples/eval/answer_cases.json --out-json reports/evaluation.json --out-md reports/evaluation.md
+```
+
+Honesty note: the current evaluation harness is small and deterministic. It measures basic
+evidence retrieval and extractive answer grounding, not full natural-language answer quality.
+
 The system will:
 
 ingest PDFs, Markdown files, and repo docs

@@ -3,12 +3,20 @@ import typer
 from researchops_agent.agents.claim_extractor import extract_experiment_claims
 from researchops_agent.agents.extractive import answer_from_evidence
 from researchops_agent.agents.report_builder import build_research_report
+from researchops_agent.evaluation.answer_eval import evaluate_answers
+from researchops_agent.evaluation.load_cases import load_answer_cases, load_retrieval_cases
+from researchops_agent.evaluation.report import (
+    build_evaluation_report,
+    format_evaluation_markdown,
+)
+from researchops_agent.evaluation.retrieval_eval import evaluate_retrieval
 from researchops_agent.ingestion.chunking import chunk_pages
 from researchops_agent.ingestion.loaders import load_document
 from researchops_agent.retrieval.evidence import build_evidence_pack
 from researchops_agent.retrieval.tfidf import TfidfRetriever
 from researchops_agent.schemas.answer import EvidencePack
 from researchops_agent.utils.json_io import write_json
+from researchops_agent.utils.text_io import write_text
 
 app = typer.Typer(help="ResearchOps Agent CLI")
 
@@ -211,6 +219,61 @@ def report(
             typer.echo(f"Reason: {research_report.reason}")
     if out:
         typer.echo(f"Wrote report: {out}")
+
+
+@app.command("eval")
+def eval_command(
+    retrieval_cases: str = typer.Option(
+        "examples/eval/retrieval_cases.json",
+        "--retrieval-cases",
+        help="Path to retrieval evaluation cases JSON.",
+    ),
+    answer_cases: str = typer.Option(
+        "examples/eval/answer_cases.json",
+        "--answer-cases",
+        help="Path to answer evaluation cases JSON.",
+    ),
+    out_json: str | None = typer.Option(
+        "reports/evaluation.json",
+        "--out-json",
+        help="Write the evaluation report to JSON.",
+    ),
+    out_md: str | None = typer.Option(
+        "reports/evaluation.md",
+        "--out-md",
+        help="Write the evaluation report to Markdown.",
+    ),
+    top_k: int = typer.Option(3, "--top-k", help="Number of retrieval results to evaluate."),
+) -> None:
+    """Run local deterministic retrieval and answer evaluations."""
+    try:
+        retrieval_case_data = load_retrieval_cases(retrieval_cases)
+        answer_case_data = load_answer_cases(answer_cases)
+        retrieval_results = evaluate_retrieval(retrieval_case_data, top_k=top_k)
+        answer_results = evaluate_answers(answer_case_data)
+        evaluation_report = build_evaluation_report(retrieval_results, answer_results)
+
+        if out_json:
+            write_json(out_json, evaluation_report)
+        if out_md:
+            write_text(out_md, format_evaluation_markdown(evaluation_report))
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    summary = evaluation_report.summary
+    typer.echo(
+        f"Retrieval hit rate: {summary.retrieval_hit_rate:.2f} "
+        f"({summary.retrieval_hits}/{summary.retrieval_cases})"
+    )
+    typer.echo(
+        f"Answer pass rate: {summary.answer_pass_rate:.2f} "
+        f"({summary.answer_passes}/{summary.answer_cases})"
+    )
+    typer.echo(f"Cases: {summary.retrieval_cases} retrieval, {summary.answer_cases} answer")
+    if out_json:
+        typer.echo(f"Wrote JSON report: {out_json}")
+    if out_md:
+        typer.echo(f"Wrote Markdown report: {out_md}")
 
 
 if __name__ == "__main__":

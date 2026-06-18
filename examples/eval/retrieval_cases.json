@@ -1,0 +1,26 @@
+[
+  {
+    "case_id": "retrieval-task",
+    "document_path": "examples/docs/time_series_note.md",
+    "query": "What forecasting task is described?",
+    "expected_substrings": ["one-step-ahead time-series forecasting"]
+  },
+  {
+    "case_id": "retrieval-models",
+    "document_path": "examples/docs/time_series_note.md",
+    "query": "Which models are compared?",
+    "expected_substrings": ["Ridge, LSTM, and Transformer"]
+  },
+  {
+    "case_id": "retrieval-metrics",
+    "document_path": "examples/docs/time_series_note.md",
+    "query": "What metrics are used?",
+    "expected_substrings": ["RMSE and MAE"]
+  },
+  {
+    "case_id": "retrieval-validation",
+    "document_path": "examples/docs/time_series_note.md",
+    "query": "What validation strategy is used?",
+    "expected_substrings": ["chronological split"]
+  }
+]

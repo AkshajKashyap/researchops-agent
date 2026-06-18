@@ -1,0 +1,26 @@
+[
+  {
+    "case_id": "answer-task",
+    "document_path": "examples/docs/time_series_note.md",
+    "query": "What forecasting task is described?",
+    "expected_answer_substrings": ["one-step-ahead time-series forecasting"]
+  },
+  {
+    "case_id": "answer-models",
+    "document_path": "examples/docs/time_series_note.md",
+    "query": "Which models are compared?",
+    "expected_answer_substrings": ["Ridge", "LSTM", "Transformer"]
+  },
+  {
+    "case_id": "answer-risk",
+    "document_path": "examples/docs/time_series_note.md",
+    "query": "What reproducibility risk is mentioned?",
+    "expected_answer_substrings": ["random seeds", "hardware details"]
+  },
+  {
+    "case_id": "answer-abstain",
+    "document_path": "examples/docs/time_series_note.md",
+    "query": "What optimizer learning rate schedule was used?",
+    "should_abstain": true
+  }
+]
