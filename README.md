@@ -38,6 +38,25 @@ evidence handling are trustworthy first.
 researchops ask data/raw/example.md "What is this document about?"
 ```
 
+## Current ResearchOps MVP
+
+The project now supports the first end-to-end local ResearchOps flow:
+
+- Ingest local research documents.
+- Retrieve citation-ready evidence.
+- Answer extractively from retrieved evidence.
+- Extract experiment-like claims with deterministic heuristics.
+- Suggest a heuristic experiment config.
+- Export a JSON research report.
+
+```bash
+researchops claims data/raw/example.md "What models and metrics are used?"
+researchops report data/raw/example.md "What experiment does this document describe?" --out reports/example_report.json
+```
+
+Honesty note: the current system is deterministic and heuristic. It does not yet use LLM
+reasoning, external tools, or real experiment execution.
+
 The system will:
 
 ingest PDFs, Markdown files, and repo docs
