@@ -2,7 +2,15 @@ import pytest
 from fastapi import HTTPException
 
 from researchops_agent.api.main import ask, health, llm_ask, llm_report, retrieve, run_config
-from researchops_agent.schemas.api import DocumentQueryRequest, LLMDocumentQueryRequest, RunConfigRequest
+from researchops_agent.api.main import corpus_ask, corpus_index, corpus_search, llm_corpus_ask
+from researchops_agent.schemas.api import (
+    CorpusIndexRequest,
+    CorpusQueryRequest,
+    DocumentQueryRequest,
+    LLMCorpusQueryRequest,
+    LLMDocumentQueryRequest,
+    RunConfigRequest,
+)
 from researchops_agent.utils.yaml_io import write_yaml
 
 
@@ -129,3 +137,54 @@ def test_api_llm_invalid_provider_returns_http_400(tmp_path) -> None:
         )
 
     assert exc_info.value.status_code == 400
+
+
+def test_api_corpus_index_works_on_temp_docs(tmp_path) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.md").write_text("Ridge uses RMSE.", encoding="utf-8")
+    index_dir = tmp_path / "index"
+
+    response = corpus_index(CorpusIndexRequest(root_path=str(docs), index_dir=str(index_dir)))
+
+    assert response.num_documents == 1
+    assert (index_dir / "manifest.json").exists()
+
+
+def test_api_corpus_search_works(tmp_path) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.md").write_text("Ridge uses RMSE.", encoding="utf-8")
+    index_dir = tmp_path / "index"
+    corpus_index(CorpusIndexRequest(root_path=str(docs), index_dir=str(index_dir)))
+
+    response = corpus_search(CorpusQueryRequest(index_dir=str(index_dir), query="Ridge RMSE"))
+
+    assert response.results
+
+
+def test_api_corpus_ask_works(tmp_path) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.md").write_text("Ridge uses RMSE.", encoding="utf-8")
+    index_dir = tmp_path / "index"
+    corpus_index(CorpusIndexRequest(root_path=str(docs), index_dir=str(index_dir)))
+
+    response = corpus_ask(CorpusQueryRequest(index_dir=str(index_dir), query="Ridge RMSE"))
+
+    assert response.abstained is False
+
+
+def test_api_llm_corpus_ask_works_with_fake_provider(tmp_path) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.md").write_text("Ridge uses RMSE.", encoding="utf-8")
+    index_dir = tmp_path / "index"
+    corpus_index(CorpusIndexRequest(root_path=str(docs), index_dir=str(index_dir)))
+
+    response = llm_corpus_ask(
+        LLMCorpusQueryRequest(index_dir=str(index_dir), query="Ridge RMSE", provider="fake")
+    )
+
+    assert response.abstained is False
+    assert response.citations

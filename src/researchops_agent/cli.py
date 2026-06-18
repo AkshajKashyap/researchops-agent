@@ -7,6 +7,7 @@ from researchops_agent.agents.extractive import answer_from_evidence
 from researchops_agent.agents.report_builder import build_research_report
 from researchops_agent.evaluation.answer_eval import evaluate_answers
 from researchops_agent.evaluation.compare import compare_retrievers
+from researchops_agent.evaluation.corpus_eval import evaluate_corpus_retrieval
 from researchops_agent.evaluation.llm_answer_eval import evaluate_llm_answers
 from researchops_agent.evaluation.load_cases import load_answer_cases, load_retrieval_cases
 from researchops_agent.evaluation.report import (
@@ -15,12 +16,17 @@ from researchops_agent.evaluation.report import (
 )
 from researchops_agent.evaluation.retrieval_eval import evaluate_retrieval
 from researchops_agent.pipeline import (
+    ask_corpus,
+    build_report_from_corpus,
     build_evidence_from_document,
     load_chunk_retrieve,
+    llm_ask_corpus,
     llm_ask_document,
+    llm_report_from_corpus,
     llm_report_from_document,
     suggest_config_from_document,
 )
+from researchops_agent.corpus.search import build_index_for_corpus, search_corpus
 from researchops_agent.ingestion.chunking import chunk_pages
 from researchops_agent.ingestion.loaders import load_document
 from researchops_agent.runner.config_builder import suggest_experiment_config
@@ -590,6 +596,245 @@ def eval_llm_command(
     typer.echo(
         f"LLM answer pass rate: {summary.answer_pass_rate:.2f} "
         f"({summary.answer_passes}/{summary.answer_cases})"
+    )
+    if out_json:
+        typer.echo(f"Wrote JSON report: {out_json}")
+    if out_md:
+        typer.echo(f"Wrote Markdown report: {out_md}")
+
+
+@app.command("index-corpus")
+def index_corpus_command(
+    root_path: str,
+    index_dir: str = typer.Option(
+        "data/indexes/demo_corpus",
+        "--index-dir",
+        help="Directory for the persisted corpus index.",
+    ),
+    retriever: str = typer.Option("tfidf", "--retriever", help="Retriever backend."),
+    recursive: bool = typer.Option(True, "--recursive/--no-recursive", help="Search folders recursively."),
+    chunk_size: int = typer.Option(1200, "--chunk-size", help="Maximum characters per chunk."),
+    overlap: int = typer.Option(200, "--overlap", help="Characters shared between chunks."),
+) -> None:
+    """Build a persistent local corpus index from documents."""
+    try:
+        metadata = build_index_for_corpus(
+            root_path=root_path,
+            index_dir=index_dir,
+            retriever_kind=retriever,
+            recursive=recursive,
+            chunk_size=chunk_size,
+            overlap=overlap,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"Corpus ID: {metadata.corpus_id}")
+    typer.echo(f"Documents: {metadata.num_documents}")
+    typer.echo(f"Chunks: {metadata.num_chunks}")
+    typer.echo(f"Retriever: {metadata.retriever}")
+    typer.echo(f"Index directory: {index_dir}")
+
+
+@app.command("search-corpus")
+def search_corpus_command(
+    index_dir: str,
+    query: str,
+    top_k: int = typer.Option(5, "--top-k", help="Maximum number of retrieval results."),
+    retriever: str | None = typer.Option(None, "--retriever", help="Override retriever backend."),
+) -> None:
+    """Search a persisted local corpus index."""
+    try:
+        result = search_corpus(index_dir, query, top_k=top_k, retriever_kind=retriever)
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    for rank, item in enumerate(result.results, start=1):
+        typer.echo(f"Rank: {rank}")
+        typer.echo(f"Score: {item.score:.4f}")
+        typer.echo(f"Source: {item.source_path}")
+        if item.page_number is not None:
+            typer.echo(f"Page: {item.page_number}")
+        typer.echo(f"Chunk: {item.chunk_index}")
+        typer.echo(f"Preview: {item.text[:300].replace(chr(10), ' ')}")
+        if rank < len(result.results):
+            typer.echo("")
+
+
+@app.command("ask-corpus")
+def ask_corpus_command(
+    index_dir: str,
+    query: str,
+    top_k: int = typer.Option(5, "--top-k", help="Maximum number of retrieval results."),
+    retriever: str | None = typer.Option(None, "--retriever", help="Override retriever backend."),
+) -> None:
+    """Answer from persisted corpus evidence with the extractive baseline."""
+    try:
+        answer = ask_corpus(index_dir, query, top_k=top_k, retriever_kind=retriever)
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"Answer: {answer.answer}")
+    typer.echo(f"Abstained: {answer.abstained}")
+    if answer.reason:
+        typer.echo(f"Reason: {answer.reason}")
+    if answer.citations:
+        typer.echo("Citations:")
+        for citation in answer.citations:
+            typer.echo(f"- {citation}")
+
+
+@app.command("llm-ask-corpus")
+def llm_ask_corpus_command(
+    index_dir: str,
+    query: str,
+    top_k: int = typer.Option(5, "--top-k", help="Maximum number of retrieval results."),
+    retriever: str | None = typer.Option(None, "--retriever", help="Override retriever backend."),
+    provider: str = typer.Option("fake", "--provider", help="LLM provider: fake or openai."),
+    model: str | None = typer.Option(None, "--model", help="LLM model name."),
+    trace: str | None = typer.Option(
+        "reports/traces/llm_traces.jsonl",
+        "--trace",
+        help="Path for JSONL trace metadata.",
+    ),
+) -> None:
+    """Answer from corpus evidence with an optional grounded LLM provider."""
+    try:
+        answer = llm_ask_corpus(
+            index_dir,
+            query,
+            top_k=top_k,
+            retriever_kind=retriever,
+            provider=provider,
+            model=model,
+            trace_path=trace,
+        )
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"Answer: {answer.answer}")
+    typer.echo(f"Abstained: {answer.abstained}")
+    if answer.reason:
+        typer.echo(f"Reason: {answer.reason}")
+    if answer.citations:
+        typer.echo("Citations:")
+        for citation in answer.citations:
+            typer.echo(f"- {citation}")
+
+
+@app.command("corpus-report")
+def corpus_report_command(
+    index_dir: str,
+    query: str,
+    top_k: int = typer.Option(5, "--top-k", help="Maximum number of retrieval results."),
+    retriever: str | None = typer.Option(None, "--retriever", help="Override retriever backend."),
+    out: str | None = typer.Option(
+        "reports/corpus_report.json",
+        "--out",
+        help="Write corpus report to JSON.",
+    ),
+) -> None:
+    """Build a deterministic corpus report."""
+    try:
+        report = build_report_from_corpus(index_dir, query, top_k=top_k, retriever_kind=retriever)
+        if out:
+            write_json(out, report)
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"Answer: {report.answer}")
+    typer.echo(f"Claims: {len(report.claims)}")
+    if out:
+        typer.echo(f"Wrote report: {out}")
+
+
+@app.command("llm-corpus-report")
+def llm_corpus_report_command(
+    index_dir: str,
+    query: str,
+    top_k: int = typer.Option(5, "--top-k", help="Maximum number of retrieval results."),
+    retriever: str | None = typer.Option(None, "--retriever", help="Override retriever backend."),
+    provider: str = typer.Option("fake", "--provider", help="LLM provider: fake or openai."),
+    model: str | None = typer.Option(None, "--model", help="LLM model name."),
+    out: str | None = typer.Option(
+        "reports/llm_corpus_report.json",
+        "--out",
+        help="Write LLM corpus report to JSON.",
+    ),
+    trace: str | None = typer.Option(
+        "reports/traces/llm_traces.jsonl",
+        "--trace",
+        help="Path for JSONL trace metadata.",
+    ),
+) -> None:
+    """Build a grounded LLM corpus report."""
+    try:
+        report = llm_report_from_corpus(
+            index_dir,
+            query,
+            top_k=top_k,
+            retriever_kind=retriever,
+            provider=provider,
+            model=model,
+            trace_path=trace,
+        )
+        if out:
+            write_json(out, report)
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"Answer: {report.answer}")
+    typer.echo(f"Claims: {len(report.claims)}")
+    if out:
+        typer.echo(f"Wrote report: {out}")
+
+
+@app.command("eval-corpus")
+def eval_corpus_command(
+    index_dir: str = typer.Option(
+        "data/indexes/demo_corpus",
+        "--index-dir",
+        help="Path to persisted corpus index.",
+    ),
+    cases: str = typer.Option(
+        "examples/eval/corpus_retrieval_cases.json",
+        "--cases",
+        help="Path to corpus retrieval cases JSON.",
+    ),
+    out_json: str | None = typer.Option(
+        "reports/corpus_eval.json",
+        "--out-json",
+        help="Write corpus eval report to JSON.",
+    ),
+    out_md: str | None = typer.Option(
+        "reports/corpus_eval.md",
+        "--out-md",
+        help="Write corpus eval report to Markdown.",
+    ),
+    top_k: int = typer.Option(3, "--top-k", help="Maximum number of retrieval results."),
+    retriever: str | None = typer.Option(None, "--retriever", help="Override retriever backend."),
+) -> None:
+    """Evaluate retrieval over a persisted corpus index."""
+    try:
+        retrieval_cases = load_retrieval_cases(cases)
+        retrieval_results = evaluate_corpus_retrieval(
+            index_dir,
+            retrieval_cases,
+            top_k=top_k,
+            retriever_kind=retriever,
+        )
+        evaluation_report = build_evaluation_report(retrieval_results, [])
+        if out_json:
+            write_json(out_json, evaluation_report)
+        if out_md:
+            write_text(out_md, format_evaluation_markdown(evaluation_report))
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    summary = evaluation_report.summary
+    typer.echo(
+        f"Corpus retrieval hit rate: {summary.retrieval_hit_rate:.2f} "
+        f"({summary.retrieval_hits}/{summary.retrieval_cases})"
     )
     if out_json:
         typer.echo(f"Wrote JSON report: {out_json}")

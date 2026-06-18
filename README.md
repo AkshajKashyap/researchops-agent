@@ -167,6 +167,30 @@ OPENAI_MODEL=<your_model> researchops llm-ask examples/docs/time_series_note.md 
 Honesty note: the LLM layer is optional and grounded by retrieved evidence. It is not allowed
 to browse the web, execute code, or cite sources outside the evidence pack.
 
+## Current Multi-Document Corpus MVP
+
+The project now supports a small local research workspace:
+
+- Discover local research documents.
+- Build a persistent local corpus index.
+- Search across multiple documents.
+- Answer from corpus evidence.
+- Run grounded LLM answering over corpus evidence.
+- Evaluate corpus retrieval.
+- Use a multi-document demo corpus in `examples/docs`.
+
+```bash
+make demo-index
+researchops search-corpus data/indexes/demo_corpus "Which models are compared across the notes?"
+researchops ask-corpus data/indexes/demo_corpus "What experiment limitations are mentioned?"
+researchops llm-ask-corpus data/indexes/demo_corpus "What datasets are used?" --provider fake
+make demo-corpus-eval
+```
+
+Honesty note: the persistent index stores chunk metadata and corpus manifests. Retriever models
+are re-fit from stored chunks at query time for simplicity. This is acceptable for a local MVP
+but not optimized for large corpora.
+
 The system will:
 
 ingest PDFs, Markdown files, and repo docs

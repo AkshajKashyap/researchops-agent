@@ -1,16 +1,19 @@
 import pandas as pd
 import streamlit as st
 
+from researchops_agent.corpus.search import build_index_for_corpus, search_corpus
 from researchops_agent.evaluation.answer_eval import evaluate_answers
 from researchops_agent.evaluation.load_cases import load_answer_cases, load_retrieval_cases
 from researchops_agent.evaluation.report import build_evaluation_report, format_evaluation_markdown
 from researchops_agent.evaluation.retrieval_eval import evaluate_retrieval
 from researchops_agent.pipeline import (
     ask_document,
+    ask_corpus,
     build_report_from_document,
     extract_claims_from_document,
     load_chunk_retrieve,
     llm_ask_document,
+    llm_ask_corpus,
     llm_report_from_document,
     suggest_config_from_document,
 )
@@ -49,6 +52,7 @@ tabs = st.tabs(
         "Run Config",
         "Evaluation",
         "LLM Grounded Answer",
+        "Corpus",
     ]
 )
 
@@ -155,3 +159,43 @@ with tabs[7]:
             trace_path=trace_path or None,
         )
         st.json(report.model_dump())
+
+with tabs[8]:
+    st.subheader("Corpus")
+    root_path = st.text_input("Corpus root path", "examples/docs", key="corpus_root")
+    index_dir = st.text_input("Index directory", "data/indexes/demo_corpus", key="corpus_index")
+    retriever = st.selectbox("Corpus retriever", ["tfidf", "embedding"], key="corpus_retriever")
+    if st.button("Build Corpus Index"):
+        metadata = build_index_for_corpus(root_path, index_dir, retriever_kind=retriever)
+        st.json(metadata.model_dump())
+
+    query = st.text_input(
+        "Corpus query",
+        "Which models are compared across the notes?",
+        key="corpus_query",
+    )
+    top_k = st.number_input("Corpus Top K", min_value=1, max_value=20, value=5)
+    if st.button("Search Corpus"):
+        results = search_corpus(index_dir, query, top_k=int(top_k), retriever_kind=retriever)
+        st.json(results.model_dump())
+    if st.button("Ask Corpus"):
+        answer = ask_corpus(index_dir, query, top_k=int(top_k), retriever_kind=retriever)
+        st.json(answer.model_dump())
+    provider = st.selectbox("Corpus LLM provider", ["fake", "openai"], key="corpus_llm_provider")
+    model = st.text_input("Corpus LLM model", "", key="corpus_llm_model")
+    trace_path = st.text_input(
+        "Corpus trace path",
+        "reports/traces/llm_traces.jsonl",
+        key="corpus_trace",
+    )
+    if st.button("LLM Ask Corpus"):
+        answer = llm_ask_corpus(
+            index_dir,
+            query,
+            top_k=int(top_k),
+            retriever_kind=retriever,
+            provider=provider,
+            model=model or None,
+            trace_path=trace_path or None,
+        )
+        st.json(answer.model_dump())

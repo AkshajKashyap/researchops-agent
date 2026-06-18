@@ -1,0 +1,32 @@
+[
+  {
+    "case_id": "corpus-time-series-models",
+    "document_path": "examples/docs/time_series_note.md",
+    "query": "Which forecasting models are compared?",
+    "expected_substrings": ["Ridge, LSTM, and Transformer"]
+  },
+  {
+    "case_id": "corpus-graph-kernels",
+    "document_path": "examples/docs/graph_kernel_note.md",
+    "query": "Which graph kernels were compared?",
+    "expected_substrings": ["shortest path kernels", "Weisfeiler-Lehman"]
+  },
+  {
+    "case_id": "corpus-graph-datasets",
+    "document_path": "examples/docs/graph_kernel_note.md",
+    "query": "What graph datasets are used?",
+    "expected_substrings": ["MUTAG", "PTC", "PROTEINS"]
+  },
+  {
+    "case_id": "corpus-researchops-pipeline",
+    "document_path": "examples/docs/researchops_note.md",
+    "query": "What does the ResearchOps pipeline build?",
+    "expected_substrings": ["evidence packs"]
+  },
+  {
+    "case_id": "corpus-llm-limits",
+    "document_path": "examples/docs/researchops_note.md",
+    "query": "What must grounded LLM answering do?",
+    "expected_substrings": ["cite only evidence-pack citations", "abstain"]
+  }
+]

@@ -1,0 +1,29 @@
+{
+  "corpus_id": "corpus_9e770e3eb3af",
+  "root_path": "examples/docs",
+  "documents": [
+    {
+      "path": "examples/docs/graph_kernel_note.md",
+      "source_type": "markdown",
+      "title": null,
+      "num_pages": 1,
+      "num_chunks": 1
+    },
+    {
+      "path": "examples/docs/researchops_note.md",
+      "source_type": "markdown",
+      "title": null,
+      "num_pages": 1,
+      "num_chunks": 1
+    },
+    {
+      "path": "examples/docs/time_series_note.md",
+      "source_type": "markdown",
+      "title": null,
+      "num_pages": 1,
+      "num_chunks": 1
+    }
+  ],
+  "total_pages": 3,
+  "total_chunks": 3
+}

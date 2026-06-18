@@ -1,16 +1,21 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import ValidationError
 
+from researchops_agent.corpus.search import build_index_for_corpus, search_corpus
 from researchops_agent.evaluation.answer_eval import evaluate_answers
 from researchops_agent.evaluation.load_cases import load_answer_cases, load_retrieval_cases
 from researchops_agent.evaluation.report import build_evaluation_report
 from researchops_agent.evaluation.retrieval_eval import evaluate_retrieval
 from researchops_agent.pipeline import (
     ask_document,
+    ask_corpus,
+    build_report_from_corpus,
     build_report_from_document,
     extract_claims_from_document,
     load_chunk_retrieve,
+    llm_ask_corpus,
     llm_ask_document,
+    llm_report_from_corpus,
     llm_report_from_document,
     suggest_config_from_document,
 )
@@ -18,9 +23,13 @@ from researchops_agent.runner.experiment_runner import run_experiment_config
 from researchops_agent.schemas.api import (
     DocumentQueryRequest,
     EvalRequest,
+    CorpusIndexRequest,
+    CorpusQueryRequest,
+    LLMCorpusQueryRequest,
     LLMDocumentQueryRequest,
     RunConfigRequest,
 )
+from researchops_agent.schemas.corpus import CorpusIndexMetadata, CorpusSearchResult
 from researchops_agent.schemas.evaluation import EvaluationReport
 from researchops_agent.schemas.experiment import ExperimentClaim, ExperimentConfig, ResearchReport
 from researchops_agent.schemas.llm import GroundedLLMAnswer
@@ -164,4 +173,90 @@ def llm_report(request: LLMDocumentQueryRequest) -> ResearchReport:
             trace_path=request.trace_path,
         )
     except (FileNotFoundError, ValueError) as exc:
+        raise _as_bad_request(exc) from exc
+
+
+@app.post("/corpus/index")
+def corpus_index(request: CorpusIndexRequest) -> CorpusIndexMetadata:
+    try:
+        return build_index_for_corpus(
+            root_path=request.root_path,
+            index_dir=request.index_dir,
+            retriever_kind=request.retriever,
+            recursive=request.recursive,
+            chunk_size=request.chunk_size,
+            overlap=request.overlap,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise _as_bad_request(exc) from exc
+
+
+@app.post("/corpus/search")
+def corpus_search(request: CorpusQueryRequest) -> CorpusSearchResult:
+    try:
+        return search_corpus(
+            request.index_dir,
+            request.query,
+            top_k=request.top_k,
+            retriever_kind=request.retriever,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise _as_bad_request(exc) from exc
+
+
+@app.post("/corpus/ask")
+def corpus_ask(request: CorpusQueryRequest) -> ExtractiveAnswer:
+    try:
+        return ask_corpus(
+            request.index_dir,
+            request.query,
+            top_k=request.top_k,
+            retriever_kind=request.retriever,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise _as_bad_request(exc) from exc
+
+
+@app.post("/corpus/report")
+def corpus_report(request: CorpusQueryRequest) -> ResearchReport:
+    try:
+        return build_report_from_corpus(
+            request.index_dir,
+            request.query,
+            top_k=request.top_k,
+            retriever_kind=request.retriever,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise _as_bad_request(exc) from exc
+
+
+@app.post("/llm/corpus/ask")
+def llm_corpus_ask(request: LLMCorpusQueryRequest) -> GroundedLLMAnswer:
+    try:
+        return llm_ask_corpus(
+            request.index_dir,
+            request.query,
+            top_k=request.top_k,
+            retriever_kind=request.retriever,
+            provider=request.provider,
+            model=request.model,
+            trace_path=request.trace_path,
+        )
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise _as_bad_request(exc) from exc
+
+
+@app.post("/llm/corpus/report")
+def llm_corpus_report(request: LLMCorpusQueryRequest) -> ResearchReport:
+    try:
+        return llm_report_from_corpus(
+            request.index_dir,
+            request.query,
+            top_k=request.top_k,
+            retriever_kind=request.retriever,
+            provider=request.provider,
+            model=request.model,
+            trace_path=request.trace_path,
+        )
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
         raise _as_bad_request(exc) from exc

@@ -1,0 +1,9 @@
+{
+  "corpus_id": "corpus_9e770e3eb3af",
+  "root_path": "examples/docs",
+  "retriever": "tfidf",
+  "chunk_size": 1200,
+  "overlap": 200,
+  "num_documents": 3,
+  "num_chunks": 3
+}

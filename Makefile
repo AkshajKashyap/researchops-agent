@@ -1,4 +1,4 @@
-.PHONY: install test lint api dashboard demo-eval demo-run health
+.PHONY: install test lint api dashboard demo-eval demo-run demo-index demo-corpus-search demo-corpus-eval health
 
 install:
 	python -m pip install -e .
@@ -20,6 +20,15 @@ demo-eval:
 
 demo-run:
 	researchops run-config configs/time_series_demo.yaml --out-dir reports/runs
+
+demo-index:
+	researchops index-corpus examples/docs --index-dir data/indexes/demo_corpus --retriever tfidf
+
+demo-corpus-search:
+	researchops search-corpus data/indexes/demo_corpus "Which graph kernels were compared?"
+
+demo-corpus-eval:
+	researchops eval-corpus --index-dir data/indexes/demo_corpus --cases examples/eval/corpus_retrieval_cases.json --out-json reports/corpus_eval.json --out-md reports/corpus_eval.md
 
 health:
 	researchops health

@@ -1,0 +1,41 @@
+[
+  {
+    "chunk_id": "examples/docs/graph_kernel_note.md::page:none::chunk:0",
+    "source": {
+      "path": "examples/docs/graph_kernel_note.md",
+      "source_type": "markdown",
+      "title": null
+    },
+    "page_number": null,
+    "chunk_index": 0,
+    "text": "# Graph Kernel SVM Experiment Note\n\nThis note describes graph classification experiments on MUTAG, PTC, and PROTEINS. The task is\nsupervised molecular and protein graph classification using support vector machines.\n\nWe compare graph statistics features, shortest path kernels, and Weisfeiler-Lehman (WL)\nsubtree kernels. Models are evaluated with accuracy and macro F1 using repeated stratified\nsplits.\n\nResults show that WL kernels achieve higher accuracy than graph statistics on MUTAG, while\nshortest path kernels remain competitive on PROTEINS. Macro F1 is more variable on PTC because\nthe class distribution is smaller and noisier.\n\nA reproducibility risk is that kernel hyperparameter grids and exact split seeds are not fully\nspecified.",
+    "start_char": 0,
+    "end_char": 743
+  },
+  {
+    "chunk_id": "examples/docs/researchops_note.md::page:none::chunk:0",
+    "source": {
+      "path": "examples/docs/researchops_note.md",
+      "source_type": "markdown",
+      "title": null
+    },
+    "page_number": null,
+    "chunk_index": 0,
+    "text": "# ResearchOps Agent Pipeline Note\n\nResearchOps Agent is a local research workflow for documents and bounded experiments. The\npipeline ingests local PDF, Markdown, and text files, chunks them, retrieves citation-ready\nevidence, and builds evidence packs.\n\nThe system can answer extractively from evidence, extract experiment-like claims, suggest\nheuristic experiment configs, and run a bounded local time-series forecasting runner. Optional\nLLM grounded answering can use retrieved evidence, but it must cite only evidence-pack\ncitations and abstain when evidence is insufficient.\n\nThe current limitations are intentional: no web search, no arbitrary code execution, no\ndatabase requirement, and only a small explicit runner task. These constraints make the system\nauditable for local ResearchOps demos.",
+    "start_char": 0,
+    "end_char": 802
+  },
+  {
+    "chunk_id": "examples/docs/time_series_note.md::page:none::chunk:0",
+    "source": {
+      "path": "examples/docs/time_series_note.md",
+      "source_type": "markdown",
+      "title": null
+    },
+    "page_number": null,
+    "chunk_index": 0,
+    "text": "# Time-Series Forecasting Note\n\nThis note describes a local forecasting experiment for hourly energy demand. The task is\none-step-ahead time-series forecasting using the EnergyDemand-2024 dataset, which contains\ntimestamped load, temperature, and calendar features.\n\nWe compare Ridge, LSTM, and Transformer models against a seasonal naive baseline. Models are\nevaluated with RMSE and MAE on a chronological split where the final four weeks are held out\nfor validation.\n\nResults show that the LSTM achieves lower RMSE than Ridge, while the Transformer achieves the\nlowest MAE on the validation window. The Ridge model remains useful as a fast baseline.\n\nA reproducibility risk is that random seeds and hardware details are not fully specified in\nthe retrieved note, so exact neural model results may vary.",
+    "start_char": 0,
+    "end_char": 804
+  }
+]
