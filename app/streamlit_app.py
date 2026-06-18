@@ -20,7 +20,9 @@ from researchops_agent.pipeline import (
 from researchops_agent.runner.experiment_runner import run_experiment_config
 from researchops_agent.runner.registry import summarize_runs
 from researchops_agent.schemas.experiment import ExperimentConfig
+from researchops_agent.schemas.workflow import WorkflowOptions
 from researchops_agent.utils.yaml_io import read_yaml
+from researchops_agent.workflows.orchestrator import run_research_workflow
 
 DEFAULT_DOC = "examples/docs/time_series_note.md"
 DEFAULT_QUERY = "What experiment is described?"
@@ -53,6 +55,7 @@ tabs = st.tabs(
         "Evaluation",
         "LLM Grounded Answer",
         "Corpus",
+        "Workflow",
     ]
 )
 
@@ -199,3 +202,55 @@ with tabs[8]:
             trace_path=trace_path or None,
         )
         st.json(answer.model_dump())
+
+with tabs[9]:
+    st.subheader("Workflow")
+    workflow_index_dir = st.text_input(
+        "Workflow index directory",
+        "data/indexes/demo_corpus",
+        key="workflow_index",
+    )
+    workflow_query = st.text_input(
+        "Workflow query",
+        "What experiment is described and can we run a local version?",
+        key="workflow_query",
+    )
+    workflow_retriever = st.selectbox(
+        "Workflow retriever",
+        ["tfidf", "embedding"],
+        key="workflow_retriever",
+    )
+    workflow_top_k = st.number_input(
+        "Workflow Top K",
+        min_value=1,
+        max_value=20,
+        value=5,
+        key="workflow_top_k",
+    )
+    workflow_use_llm = st.checkbox("Use grounded LLM", value=False)
+    workflow_provider = st.selectbox("Workflow LLM provider", ["fake", "openai"])
+    workflow_model = st.text_input("Workflow LLM model", "")
+    workflow_run = st.checkbox("Run bounded experiment if runnable", value=False)
+    workflow_seed = st.number_input("Workflow seed", value=42, step=1)
+    workflow_out_dir = st.text_input("Workflow output directory", "reports/workflows")
+    st.info(
+        "This workflow coordinates local retrieval, citation-grounded answering, heuristic "
+        "claim/config extraction, validation, and optional bounded runs."
+    )
+    if st.button("Run Workflow"):
+        result = run_research_workflow(
+            index_dir=workflow_index_dir,
+            query=workflow_query,
+            options=WorkflowOptions(
+                retriever=workflow_retriever,
+                top_k=int(workflow_top_k),
+                use_llm=workflow_use_llm,
+                llm_provider=workflow_provider,
+                llm_model=workflow_model or None,
+                run_if_runnable=workflow_run,
+                seed=int(workflow_seed),
+            ),
+            out_dir=workflow_out_dir,
+        )
+        st.write(result.answer)
+        st.json(result.model_dump())

@@ -33,9 +33,11 @@ from researchops_agent.runner.config_builder import suggest_experiment_config
 from researchops_agent.runner.experiment_runner import run_experiment_config
 from researchops_agent.schemas.answer import EvidencePack
 from researchops_agent.schemas.experiment import ExperimentConfig
+from researchops_agent.schemas.workflow import WorkflowOptions
 from researchops_agent.utils.json_io import write_json
 from researchops_agent.utils.text_io import write_text
 from researchops_agent.utils.yaml_io import read_yaml, write_yaml
+from researchops_agent.workflows.orchestrator import run_research_workflow
 
 app = typer.Typer(help="ResearchOps Agent CLI")
 
@@ -840,6 +842,65 @@ def eval_corpus_command(
         typer.echo(f"Wrote JSON report: {out_json}")
     if out_md:
         typer.echo(f"Wrote Markdown report: {out_md}")
+
+
+@app.command("workflow")
+def workflow_command(
+    index_dir: str,
+    query: str,
+    retriever: str = typer.Option("tfidf", "--retriever", help="Retriever backend."),
+    top_k: int = typer.Option(5, "--top-k", help="Maximum number of retrieval results."),
+    use_llm: bool = typer.Option(False, "--use-llm", help="Use grounded LLM answering."),
+    llm_provider: str = typer.Option("fake", "--llm-provider", help="LLM provider: fake or openai."),
+    llm_model: str | None = typer.Option(None, "--llm-model", help="LLM model name."),
+    run_if_runnable: bool = typer.Option(
+        False,
+        "--run-if-runnable",
+        help="Run the bounded experiment if the suggested config validates.",
+    ),
+    seed: int = typer.Option(42, "--seed", help="Seed for bounded experiment runs."),
+    out_dir: str = typer.Option(
+        "reports/workflows",
+        "--out-dir",
+        help="Directory for workflow artifacts.",
+    ),
+) -> None:
+    """Run the end-to-end local ResearchOps workflow over a corpus index."""
+    try:
+        result = run_research_workflow(
+            index_dir=index_dir,
+            query=query,
+            options=WorkflowOptions(
+                retriever=retriever,
+                top_k=top_k,
+                use_llm=use_llm,
+                llm_provider=llm_provider,
+                llm_model=llm_model,
+                run_if_runnable=run_if_runnable,
+                seed=seed,
+            ),
+            out_dir=out_dir,
+        )
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"Workflow ID: {result.workflow_id}")
+    typer.echo(f"Answer: {result.answer}")
+    typer.echo(f"Abstained: {result.abstained}")
+    if result.citations:
+        typer.echo("Citations:")
+        for citation in result.citations:
+            typer.echo(f"- {citation}")
+    typer.echo(f"Claims: {len(result.claims)}")
+    typer.echo(f"Config runnable: {result.config_validation.runnable}")
+    if result.config_validation.errors:
+        typer.echo("Config validation errors:")
+        for error in result.config_validation.errors:
+            typer.echo(f"- {error}")
+    typer.echo(f"Run executed: {result.run_result is not None}")
+    typer.echo("Artifacts:")
+    for artifact in result.artifacts:
+        typer.echo(f"- {artifact.name} ({artifact.artifact_type}): {artifact.path}")
 
 
 if __name__ == "__main__":

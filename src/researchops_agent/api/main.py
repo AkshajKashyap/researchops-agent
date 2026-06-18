@@ -21,13 +21,14 @@ from researchops_agent.pipeline import (
 )
 from researchops_agent.runner.experiment_runner import run_experiment_config
 from researchops_agent.schemas.api import (
-    DocumentQueryRequest,
-    EvalRequest,
     CorpusIndexRequest,
     CorpusQueryRequest,
+    DocumentQueryRequest,
+    EvalRequest,
     LLMCorpusQueryRequest,
     LLMDocumentQueryRequest,
     RunConfigRequest,
+    WorkflowRequest,
 )
 from researchops_agent.schemas.corpus import CorpusIndexMetadata, CorpusSearchResult
 from researchops_agent.schemas.evaluation import EvaluationReport
@@ -36,7 +37,9 @@ from researchops_agent.schemas.llm import GroundedLLMAnswer
 from researchops_agent.schemas.retrieval import RetrievalResult
 from researchops_agent.schemas.run import ExperimentRunResult
 from researchops_agent.schemas.answer import ExtractiveAnswer
+from researchops_agent.schemas.workflow import WorkflowOptions, WorkflowResult
 from researchops_agent.utils.yaml_io import read_yaml
+from researchops_agent.workflows.orchestrator import run_research_workflow
 
 app = FastAPI(title="ResearchOps Agent")
 
@@ -257,6 +260,27 @@ def llm_corpus_report(request: LLMCorpusQueryRequest) -> ResearchReport:
             provider=request.provider,
             model=request.model,
             trace_path=request.trace_path,
+        )
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise _as_bad_request(exc) from exc
+
+
+@app.post("/workflow")
+def workflow(request: WorkflowRequest) -> WorkflowResult:
+    try:
+        return run_research_workflow(
+            index_dir=request.index_dir,
+            query=request.query,
+            options=WorkflowOptions(
+                retriever=request.retriever,
+                top_k=request.top_k,
+                use_llm=request.use_llm,
+                llm_provider=request.llm_provider,
+                llm_model=request.llm_model,
+                run_if_runnable=request.run_if_runnable,
+                seed=request.seed,
+            ),
+            out_dir=request.out_dir,
         )
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
         raise _as_bad_request(exc) from exc

@@ -55,3 +55,16 @@ class LLMCorpusQueryRequest(BaseModel):
     provider: str = "fake"
     model: str | None = None
     trace_path: str | None = None
+
+
+class WorkflowRequest(BaseModel):
+    index_dir: str
+    query: str
+    retriever: str = "tfidf"
+    top_k: int = 5
+    use_llm: bool = False
+    llm_provider: str = "fake"
+    llm_model: str | None = None
+    run_if_runnable: bool = False
+    seed: int = 42
+    out_dir: str = "reports/workflows"

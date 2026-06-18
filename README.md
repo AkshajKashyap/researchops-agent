@@ -191,6 +191,29 @@ Honesty note: the persistent index stores chunk metadata and corpus manifests. R
 are re-fit from stored chunks at query time for simplicity. This is acceptable for a local MVP
 but not optimized for large corpora.
 
+## Current End-to-End Workflow MVP
+
+The project can now run one coherent local ResearchOps workflow:
+
+- Query a local corpus index.
+- Retrieve citation-ready evidence.
+- Answer with citations.
+- Extract experiment-like claims.
+- Suggest an experiment config.
+- Validate whether the config is runnable.
+- Optionally run a bounded local experiment.
+- Produce JSON and Markdown workflow artifacts.
+
+```bash
+make demo-index
+make demo-workflow
+researchops workflow data/indexes/demo_corpus "What experiment is described and can we run a local version?" --run-if-runnable --out-dir reports/workflows
+```
+
+Honesty note: the workflow orchestrator coordinates deterministic and optional LLM components,
+but it is still bounded. It does not browse the web, execute arbitrary code, or reproduce
+arbitrary papers.
+
 The system will:
 
 ingest PDFs, Markdown files, and repo docs
