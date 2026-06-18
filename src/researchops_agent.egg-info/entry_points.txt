@@ -1,0 +1,2 @@
+[console_scripts]
+researchops = researchops_agent.cli:app

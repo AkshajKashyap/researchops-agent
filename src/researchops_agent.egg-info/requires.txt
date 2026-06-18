@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+pydantic
+python-dotenv
+pypdf
+markdown
+numpy
+pandas
+scikit-learn
+sentence-transformers
+faiss-cpu
+typer
+rich
+pytest
+ruff
