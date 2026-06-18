@@ -17,6 +17,16 @@ The project currently supports a fully local document ingestion foundation:
 researchops ingest data/raw/example.md
 ```
 
+## Current Retrieval MVP
+
+The retrieval layer now fits a local `TfidfVectorizer` over deterministic chunks and returns
+citation-ready results with source path, source type, page number, chunk index, text, and score.
+This proves that retrieval and citations work before adding any LLM-based answering.
+
+```bash
+researchops retrieve data/raw/example.md "What is the paper about?"
+```
+
 The system will:
 
 ingest PDFs, Markdown files, and repo docs
