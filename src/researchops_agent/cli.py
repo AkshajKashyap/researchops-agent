@@ -2,6 +2,7 @@ from pathlib import Path
 
 import typer
 
+from researchops_agent import __version__
 from researchops_agent.agents.claim_extractor import extract_experiment_claims
 from researchops_agent.agents.extractive import answer_from_evidence
 from researchops_agent.agents.report_builder import build_research_report
@@ -81,6 +82,12 @@ def _parse_retriever_kinds(retrievers: str) -> list[str]:
 def health() -> None:
     """Check that the project is wired correctly."""
     typer.echo("researchops-agent is alive")
+
+
+@app.command("version")
+def version() -> None:
+    """Print the installed researchops-agent version."""
+    typer.echo(f"researchops-agent {__version__}")
 
 
 @app.command()

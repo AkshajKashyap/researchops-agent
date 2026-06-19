@@ -22,3 +22,10 @@ def test_cli_health() -> None:
 
     assert result.exit_code == 0
     assert "researchops-agent is alive" in result.output
+
+
+def test_cli_version() -> None:
+    result = CliRunner().invoke(app, ["version"])
+
+    assert result.exit_code == 0
+    assert "researchops-agent 0.1.0" in result.output
